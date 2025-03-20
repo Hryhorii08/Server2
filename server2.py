@@ -6,7 +6,7 @@ import requests
 import psycopg2
 from flask import Flask, request, jsonify
 import openai
-
+ 
 app = Flask(__name__)
 
 # 🔑 Подключение к PostgreSQL
