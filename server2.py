@@ -27,7 +27,7 @@ def get_db_connection():
     )
 
 # 🔥 OpenAI API
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = "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"
 ASSISTANT_ID = "asst_4Jfbku9f3nTAJqcsyoCf9MGW"
 openai.api_key = OPENAI_API_KEY
 
