@@ -1,3 +1,5 @@
 Flask
 requests
 psycopg2
+openai
+gunicorn
