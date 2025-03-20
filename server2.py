@@ -10,11 +10,11 @@ import openai
 app = Flask(__name__)
 
 # 🔑 Подключение к PostgreSQL
-DB_USER = "worker1"  # Твой username в БД
-DB_PASSWORD = "HxwV52HjFiJ6jIE9QsSzB5GSuxDATlwr"  # Вставь свой пароль
-DB_NAME = "mydatabase_o3vx"  # Имя базы данных
-DB_HOST = "dpg-cvdtb452ng1s73cajrp0-a.oregon-postgres.render.com"  # Например: dpg-xxxxx-a.oregon-postgres.render.com
-DB_PORT = 5432  # Порт PostgreSQL
+DB_USER = "worker1"  
+DB_PASSWORD = "HxwV52HjFiJ6jIE9QsSzB5GSuxDATlwr"  
+DB_NAME = "mydatabase_o3vx"  
+DB_HOST = "dpg-cvdtb452ng1s73cajrp0-a.oregon-postgres.render.com"  
+DB_PORT = 5432  
 
 # 🛠 Подключаемся к базе данных
 def get_db_connection():
@@ -27,7 +27,7 @@ def get_db_connection():
     )
 
 # 🔥 OpenAI API
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Получаем ключ из переменной окружения
 ASSISTANT_ID = "asst_4Jfbku9f3nTAJqcsyoCf9MGW"
 openai.api_key = OPENAI_API_KEY
 
