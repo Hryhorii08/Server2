@@ -51,7 +51,7 @@ def send_to_openai(user_message, thread_id=None):
     return thread_id, response
 
 # 📌 API для получения сообщений
-@app.route("/message", methods=["GET"])
+@app.route("/message", methods=["POST"])
 def receive_message():
     data = request.json
     telegram_id = data.get("telegram_id")
