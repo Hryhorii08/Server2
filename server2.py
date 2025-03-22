@@ -53,7 +53,7 @@ def send_to_openai(user_message, thread_id=None):
     )
     print(f"📩 Сообщение отправлено: {message.id}")
 
-    time.sleep(2)  # небольшая задержка перед запуском Run
+    time.sleep(2)
 
     # 2. Запускаем Run
     run = openai.beta.threads.runs.create(
@@ -73,7 +73,7 @@ def send_to_openai(user_message, thread_id=None):
             return thread_id, "Ошибка обработки запроса"
         time.sleep(1)
 
-    time.sleep(2)  # короткая пауза для стабильности
+    time.sleep(2)
 
     # 4. Получаем последнее сообщение от ассистента
     messages = openai.beta.threads.messages.list(thread_id=thread_id)
@@ -86,8 +86,10 @@ def send_to_openai(user_message, thread_id=None):
     if assistant_reply and assistant_reply.content:
         last_message_data = assistant_reply.content
         if isinstance(last_message_data, list):
+            # ✅ Читаем только part.text.value, без Text(...)
             last_message = "\n".join([
-                str(part.text) for part in last_message_data if hasattr(part, "text")
+                part.text.value for part in last_message_data
+                if hasattr(part, "text") and hasattr(part.text, "value")
             ])
         else:
             last_message = str(last_message_data)
