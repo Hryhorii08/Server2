@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 import requests
 import psycopg2
 from flask import Flask, request, jsonify
@@ -7,17 +8,17 @@ import openai
 
 sys.stdout.reconfigure(encoding='utf-8')  # Устанавливаем кодировку UTF-8
 
-app = Flask(name)
+app = Flask(__name__)
 
 # 🔑 Подключение к PostgreSQL
 DB_USER = "worker1"
 DB_PASSWORD = "HxwV52HjFiJ6jIE9QsSzB5GSuxDATlwr"
 DB_NAME = "mydatabase_o3vx"
 DB_HOST = "dpg-cvdtb452ng1s73cajrp0-a.oregon-postgres.render.com"
-DB_PORT = 5432
+DB_PORT = 5432  
 
-# 🛠 Подключаемся к базе данных
 def get_db_connection():
+    print("🔌 Подключение к базе данных...")
     return psycopg2.connect(
         dbname=DB_NAME,
         user=DB_USER,
@@ -26,68 +27,114 @@ def get_db_connection():
         port=DB_PORT
     )
 
-# 🔥 OpenAI API
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Загружаем ключ из переменной окружения
-if not OPENAI_API_KEY:
-    raise ValueError("❌ Ошибка: OPENAI_API_KEY не найден в переменных окружения!")
-    
+#🔥 OpenAI API
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ASSISTANT_ID = "asst_4Jfbku9f3nTAJqcsyoCf9MGW"
 openai.api_key = OPENAI_API_KEY
 
-# 📌 Функция для работы с OpenAI
+# 📌 Работа с OpenAI
 def send_to_openai(user_message, thread_id=None):
-    if thread_id:
-        response = openai.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=user_message
-        )
-    else:
+    print(f"📤 Отправка сообщения в OpenAI: {user_message}, thread_id: {thread_id}")
+
+    if not thread_id:
         thread = openai.beta.threads.create()
         thread_id = thread.id
-        response = openai.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=user_message
-        )
-    return thread_id, response
+        print(f"🆕 Новый тред создан: {thread_id}")
 
-# 📌 API для получения сообщений
+    # 1. Отправляем сообщение
+    message = openai.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=user_message
+    )
+    print(f"📩 Сообщение отправлено: {message.id}")
+
+    time.sleep(2)  # небольшая задержка перед запуском Run
+
+    # 2. Запускаем Run
+    run = openai.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=ASSISTANT_ID
+    )
+    print(f"🚀 Run запущен: {run.id}")
+
+    # 3. Ждём завершения Run
+    while True:
+        run_status = openai.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+        if run_status.status == "completed":
+            print("✅ Run завершен")
+            break
+        elif run_status.status in ["failed", "cancelled"]:
+            print("❌ Run завершился с ошибкой")
+            return thread_id, "Ошибка обработки запроса"
+        time.sleep(1)
+
+    time.sleep(2)  # короткая пауза для стабильности
+
+    # 4. Получаем последнее сообщение от ассистента
+    messages = openai.beta.threads.messages.list(thread_id=thread_id)
+
+    assistant_reply = next(
+        (msg for msg in reversed(messages.data) if msg.role == "assistant"),
+        None
+    )
+
+    if assistant_reply and assistant_reply.content:
+        last_message_data = assistant_reply.content
+        if isinstance(last_message_data, list):
+            last_message = "\n".join([
+                str(part.text) for part in last_message_data if hasattr(part, "text")
+            ])
+        else:
+            last_message = str(last_message_data)
+    else:
+        last_message = "Ошибка: ассистент не ответил"
+
+    last_message = last_message.encode("utf-8").decode("utf-8")
+    print(f"📩 Ответ ассистента: {last_message}")
+
+    return thread_id, last_message
+
+# 📥 POST endpoint
 @app.route("/message", methods=["POST"])
 def receive_message():
-    try:
-        data = request.json
-        telegram_id = data.get("telegram_id")
-        user_message = data.get("message")
+    data = request.json
+    print(f"📥 Получен запрос: {data}")
 
-        if not telegram_id or not user_message:
-            return jsonify({"error": "Не переданы данные"}), 400
+    telegram_id = data.get("telegram_id")
+    user_message = data.get("message")
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+    if not telegram_id or not user_message:
+        print("⚠️ Ошибка: не переданы данные")
+        return jsonify({"error": "Не переданы данные"}), 400
 
-        cursor.execute("SELECT thread_id FROM users_threads WHERE telegram_id = %s;", (telegram_id,))
-        thread = cursor.fetchone()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-        if thread:
-            thread_id = thread[0]
-        else:
-            thread_id, _ = send_to_openai(user_message)
-            cursor.execute("INSERT INTO users_threads (telegram_id, thread_id) VALUES (%s, %s);",
-                           (telegram_id, thread_id))
-            conn.commit()
+    # Ищем thread_id
+    cursor.execute("SELECT thread_id FROM users_threads WHERE telegram_id = %s;", (telegram_id,))
+    thread = cursor.fetchone()
 
-        _, response = send_to_openai(user_message, thread_id)
+    if thread:
+        thread_id = thread[0]
+        print(f"✅ Найден thread_id: {thread_id}")
+    else:
+        thread_id, _ = send_to_openai(user_message)
+        cursor.execute(
+            "INSERT INTO users_threads (telegram_id, thread_id) VALUES (%s, %s);",
+            (telegram_id, thread_id)
+        )
+        conn.commit()
+        print(f"🆕 Сохранили новый thread_id: {thread_id}")
 
-        reply_text = response.content[0].text if response and response.content else "Ошибка получения ответа"
+    _, reply = send_to_openai(user_message, thread_id)
 
-        cursor.close()
-        conn.close()
+    cursor.close()
+    conn.close()
 
-        return jsonify({"reply": reply_text})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({"reply": reply})
 
 # 🚀 Запуск сервера
-if name == "main":
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == "__main__":
+    print("🚀 Сервер запущен на http://127.0.0.1:5000")
+    app.run(host="0.0.0.0", port=5000, debug=True)
