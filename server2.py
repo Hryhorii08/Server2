@@ -27,10 +27,14 @@ def get_db_connection():
         port=DB_PORT
     )
 
-#🔥 OpenAI API
+# 🔥 OpenAI API
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = "asst_4Jfbku9f3nTAJqcsyoCf9MGW"
 openai.api_key = OPENAI_API_KEY
+
+# ✅ Функция форматирования текста
+def format_text(text):
+    return text.replace("\\n", "\n").strip()
 
 # 📌 Работа с OpenAI
 def send_to_openai(user_message, thread_id=None):
@@ -90,8 +94,11 @@ def send_to_openai(user_message, thread_id=None):
     else:
         last_message = "Ошибка: ассистент не ответил"
 
+    # ✅ Приводим текст к читаемому виду
     last_message = last_message.encode("utf-8").decode("utf-8")
-    print(f"📩 Ответ ассистента: {last_message}")
+    last_message = format_text(last_message)
+
+    print(f"📩 Ответ ассистента:\n{last_message}")
 
     return thread_id, last_message
 
